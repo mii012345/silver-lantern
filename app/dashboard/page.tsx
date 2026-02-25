@@ -20,6 +20,7 @@ function DashboardContent({ user }: { user: User }) {
   const [todayLogs, setTodayLogs] = useState<Record<string, boolean>>({});
   const [streaks, setStreaks] = useState<Record<string, number>>({});
   const [loadingHabits, setLoadingHabits] = useState(true);
+  const [error, setError] = useState("");
   const today = formatDate(new Date());
 
   const loadLogsForHabits = useCallback(
@@ -42,11 +43,19 @@ function DashboardContent({ user }: { user: User }) {
   );
 
   useEffect(() => {
-    const unsubscribe = subscribeHabits(user.uid, (h) => {
-      setHabits(h);
-      setLoadingHabits(false);
-      loadLogsForHabits(h);
-    });
+    const unsubscribe = subscribeHabits(
+      user.uid,
+      (h) => {
+        setHabits(h);
+        setLoadingHabits(false);
+        loadLogsForHabits(h);
+      },
+      (err) => {
+        setError("データの読み込みに失敗しました");
+        setLoadingHabits(false);
+        console.error("subscribeHabits error:", err);
+      }
+    );
     return unsubscribe;
   }, [user.uid, loadLogsForHabits]);
 
@@ -54,13 +63,20 @@ function DashboardContent({ user }: { user: User }) {
     const currentDone = todayLogs[habitId] || false;
     const newDone = !currentDone;
 
+    // Optimistic update
     setTodayLogs((prev) => ({ ...prev, [habitId]: newDone }));
+    setError("");
 
-    await setLog(user.uid, habitId, today, newDone);
-
-    // Recalculate streak for this habit
-    const logs = await getLogsForHabit(user.uid, habitId);
-    setStreaks((prev) => ({ ...prev, [habitId]: calcStreak(logs) }));
+    try {
+      await setLog(user.uid, habitId, today, newDone);
+      // Recalculate streak for this habit
+      const logs = await getLogsForHabit(user.uid, habitId);
+      setStreaks((prev) => ({ ...prev, [habitId]: calcStreak(logs) }));
+    } catch {
+      // Rollback on failure
+      setTodayLogs((prev) => ({ ...prev, [habitId]: currentDone }));
+      setError("記録の更新に失敗しました");
+    }
   };
 
   const todayDisplay = new Date().toLocaleDateString("ja-JP", {
@@ -75,6 +91,8 @@ function DashboardContent({ user }: { user: User }) {
       <Header />
       <main className={styles.main}>
         <p className={styles.dateHeading}>{todayDisplay}</p>
+
+        {error && <p className={styles.error}>{error}</p>}
 
         {loadingHabits ? (
           <p className={styles.loading}>読み込み中...</p>

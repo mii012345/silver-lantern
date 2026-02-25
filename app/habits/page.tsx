@@ -21,10 +21,18 @@ function HabitsContent({ user }: { user: User }) {
   const [loadingHabits, setLoadingHabits] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = subscribeHabits(user.uid, (h) => {
-      setHabits(h);
-      setLoadingHabits(false);
-    });
+    const unsubscribe = subscribeHabits(
+      user.uid,
+      (h) => {
+        setHabits(h);
+        setLoadingHabits(false);
+      },
+      (err) => {
+        setError("データの読み込みに失敗しました");
+        setLoadingHabits(false);
+        console.error("subscribeHabits error:", err);
+      }
+    );
     return unsubscribe;
   }, [user.uid]);
 
@@ -71,6 +79,7 @@ function HabitsContent({ user }: { user: User }) {
             value={newHabitName}
             onChange={(e) => setNewHabitName(e.target.value)}
             disabled={adding}
+            maxLength={100}
           />
           <button
             className={styles.addButton}

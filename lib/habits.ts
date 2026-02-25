@@ -19,22 +19,37 @@ export interface Habit {
 
 export function subscribeHabits(
   userId: string,
-  callback: (habits: Habit[]) => void
+  callback: (habits: Habit[]) => void,
+  onError?: (error: Error) => void
 ) {
   const habitsRef = collection(getFirebaseDb(), "users", userId, "habits");
   const q = query(habitsRef, orderBy("createdAt", "asc"));
-  return onSnapshot(q, (snapshot) => {
-    const habits: Habit[] = snapshot.docs.map((d) => ({
-      id: d.id,
-      name: d.data().name,
-    }));
-    callback(habits);
-  });
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const habits: Habit[] = snapshot.docs.map((d) => ({
+        id: d.id,
+        name: d.data().name,
+      }));
+      callback(habits);
+    },
+    (error) => {
+      if (onError) onError(error);
+    }
+  );
 }
 
+const MAX_HABIT_NAME_LENGTH = 100;
+
 export async function addHabit(userId: string, name: string) {
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length > MAX_HABIT_NAME_LENGTH) {
+    throw new Error(
+      `習慣名は1〜${MAX_HABIT_NAME_LENGTH}文字で入力してください`
+    );
+  }
   const habitsRef = collection(getFirebaseDb(), "users", userId, "habits");
-  await addDoc(habitsRef, { name, createdAt: serverTimestamp() });
+  await addDoc(habitsRef, { name: trimmed, createdAt: serverTimestamp() });
 }
 
 export async function deleteHabit(userId: string, habitId: string) {
